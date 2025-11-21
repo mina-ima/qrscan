@@ -203,8 +203,9 @@ function App() {
               画面上のQRコードをスキャン
             </h2>
             <p className="text-slate-600 text-lg leading-relaxed">
-              スクリーンショットを撮って<span className="font-bold text-slate-800 bg-blue-100 px-2 py-0.5 rounded mx-1">貼り付け (Ctrl+V)</span>するか、<br/>
-              カメラアイコンをドラッグして画面全体をスキャンします。
+              <span className="font-bold text-slate-800">スクリーンショット</span>を撮って貼り付け(Ctrl+V)、<br/>
+              またはカメラアイコンをドラッグしてライブ読取します。<br/>
+              <span className="text-sm text-slate-400">（※画面全体のスクショでも自動検出します！）</span>
             </p>
           </div>
         )}
@@ -266,7 +267,7 @@ function App() {
 
               <div className="flex items-center justify-center gap-4 max-w-2xl mx-auto w-full pt-2">
                  <div className="h-px bg-slate-200 flex-1"></div>
-                 <span className="text-slate-400 text-sm font-medium uppercase">または クリップボード・画像</span>
+                 <span className="text-slate-400 text-sm font-medium uppercase">または 画像・クリップボード</span>
                  <div className="h-px bg-slate-200 flex-1"></div>
               </div>
 

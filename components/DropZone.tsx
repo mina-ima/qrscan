@@ -91,8 +91,8 @@ export const DropZone: React.FC<DropZoneProps> = ({ onFileSelected, isProcessing
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       className={`
-        relative flex flex-col items-center justify-center w-full max-w-2xl mx-auto h-80 
-        rounded-3xl border-4 border-dashed transition-all duration-300
+        relative flex flex-col items-center justify-center w-full max-w-2xl mx-auto 
+        rounded-3xl border-4 border-dashed transition-all duration-300 overflow-hidden
         ${isDragging 
           ? 'border-primary bg-blue-50 scale-[1.02] shadow-xl' 
           : 'border-slate-200 bg-white hover:border-primary/60 hover:bg-slate-50 shadow-sm hover:shadow-md'
@@ -107,44 +107,68 @@ export const DropZone: React.FC<DropZoneProps> = ({ onFileSelected, isProcessing
         disabled={isProcessing}
       />
       
-      <div className="text-center p-6 pointer-events-none flex flex-col items-center space-y-4 z-20">
-        <div className={`p-4 rounded-full ${isDragging ? 'bg-blue-200' : 'bg-blue-50'} transition-colors duration-300`}>
-          <svg className={`w-10 h-10 ${isDragging ? 'text-blue-600' : 'text-blue-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-        </div>
-        
+      <div className="text-center p-8 pointer-events-none flex flex-col items-center space-y-6 z-20 w-full">
         <div className="space-y-2">
-          <p className="text-xl font-semibold text-slate-700">
-            画像をドラッグ＆ドロップ
+          <div className={`mx-auto w-16 h-16 rounded-full flex items-center justify-center mb-4 transition-colors duration-300 ${isDragging ? 'bg-blue-200' : 'bg-blue-50'}`}>
+            <svg className={`w-8 h-8 ${isDragging ? 'text-blue-600' : 'text-blue-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </div>
+          <p className="text-xl font-bold text-slate-700">
+            画像をドロップ または 貼り付け
           </p>
           <p className="text-sm text-slate-500">
-            またはクリックしてアップロード
+            <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">Ctrl</span> + <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">V</span> で直接読み込めます
           </p>
         </div>
 
-        <div className="pt-4 border-t border-slate-100 w-full flex flex-col items-center gap-2 pointer-events-auto">
-           <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">
-             画面のQRコードを読み取るおすすめの方法
-           </p>
-           
+        <div className="w-full border-t border-slate-100 my-2"></div>
+
+        {/* Shortcut Guide Section */}
+        <div className="w-full bg-slate-50/80 rounded-xl p-4 border border-slate-100 text-left pointer-events-auto">
+          <div className="flex items-center gap-2 mb-3 text-slate-600">
+             <svg className="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+             <span className="text-xs font-bold uppercase tracking-wider">部分スクショの撮り方</span>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] text-slate-400 font-medium">WINDOWS</span>
+              <div className="flex items-center gap-1 text-sm text-slate-700 font-bold">
+                <kbd className="bg-white border-b-2 border-slate-200 px-1.5 rounded min-w-[2rem] text-center">Win</kbd>
+                <span className="text-slate-300">+</span>
+                <kbd className="bg-white border-b-2 border-slate-200 px-1.5 rounded min-w-[2rem] text-center">Shift</kbd>
+                <span className="text-slate-300">+</span>
+                <kbd className="bg-white border-b-2 border-slate-200 px-1.5 rounded min-w-[1.5rem] text-center">S</kbd>
+              </div>
+            </div>
+            
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] text-slate-400 font-medium">MAC</span>
+              <div className="flex items-center gap-1 text-sm text-slate-700 font-bold">
+                <kbd className="bg-white border-b-2 border-slate-200 px-1.5 rounded min-w-[2rem] text-center">Cmd</kbd>
+                <span className="text-slate-300">+</span>
+                <kbd className="bg-white border-b-2 border-slate-200 px-1.5 rounded min-w-[2rem] text-center">Ctrl</kbd>
+                <span className="text-slate-300">+</span>
+                <kbd className="bg-white border-b-2 border-slate-200 px-1.5 rounded min-w-[2rem] text-center">Shift</kbd>
+                <span className="text-slate-300">+</span>
+                <kbd className="bg-white border-b-2 border-slate-200 px-1.5 rounded min-w-[1.5rem] text-center">4</kbd>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="pointer-events-auto pt-2">
            <button
              onClick={(e) => {
-               e.stopPropagation(); // Prevent file input trigger
+               e.stopPropagation();
                handlePasteClick();
              }}
-             className="group relative bg-white border border-slate-200 hover:border-primary hover:bg-blue-50 text-slate-600 hover:text-primary py-2 px-4 rounded-lg text-sm font-medium transition-all shadow-sm hover:shadow-md flex items-center gap-2 w-auto"
+             className="text-primary hover:text-primary-600 text-sm font-medium flex items-center gap-1 hover:underline"
            >
-             <span className="absolute -top-2 -right-2 flex h-3 w-3">
-               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-               <span className="relative inline-flex rounded-full h-3 w-3 bg-primary"></span>
-             </span>
              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
-             クリップボードから読み取る
+             クリップボードから読み込む
            </button>
-           <p className="text-[10px] text-slate-400">
-             (スクリーンショットを撮って、ここを押してください)
-           </p>
         </div>
       </div>
     </div>
