@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { DropZone } from './components/DropZone';
 import { ResultCard } from './components/ResultCard';
 import { ScreenScanner } from './components/ScreenScanner';
@@ -10,10 +10,11 @@ import { AnalysisResult } from './types';
 const CameraButton: React.FC<{
   isDragging?: boolean;
   onMouseDown?: (e: React.MouseEvent) => void;
-  onClick?: () => void;
+  onClick?: (e: React.MouseEvent) => void;
+  onKeyDown?: (e: React.KeyboardEvent) => void;
   style?: React.CSSProperties;
   className?: string;
-}> = ({ isDragging, onMouseDown, onClick, style, className = "" }) => (
+}> = ({ isDragging, onMouseDown, onClick, onKeyDown, style, className = "" }) => (
   <div 
     style={style}
     className={`
@@ -25,6 +26,7 @@ const CameraButton: React.FC<{
     `}
     onMouseDown={onMouseDown}
     onClick={onClick}
+    onKeyDown={onKeyDown}
     role="button"
     tabIndex={0}
     title="ドラッグしてQRコードの上で離す、またはクリックして開始"
@@ -49,7 +51,7 @@ function App() {
   const [activeStream, setActiveStream] = useState<MediaStream | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Custom Drag State (replaces HTML5 DnD to fix user gesture issues)
+  // Custom Drag State
   const [dragPosition, setDragPosition] = useState<{x: number, y: number} | null>(null);
   const dragStartOffset = useRef({ x: 0, y: 0 });
 
@@ -133,60 +135,44 @@ function App() {
     setIsProcessing(false);
   };
 
-  // --- Custom Mouse Drag Logic ---
+  // --- Custom Mouse Drag Logic (Direct Event Binding) ---
   const handleMouseDown = (e: React.MouseEvent) => {
     // Only handle left click
     if (e.button !== 0) return;
     
     const rect = e.currentTarget.getBoundingClientRect();
-    dragStartOffset.current = {
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top
-    };
+    const offsetX = e.clientX - rect.left;
+    const offsetY = e.clientY - rect.top;
+    dragStartOffset.current = { x: offsetX, y: offsetY };
     
-    setDragPosition({
-      x: rect.left,
-      y: rect.top
-    });
-    
-    // We do NOT call preventDefault() here to allow focus events, 
-    // but we might need it if text selection is annoying.
-    // For now, CSS user-select-none handles text selection.
-  };
+    // Set initial state
+    setDragPosition({ x: rect.left, y: rect.top });
 
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (dragPosition) {
-        e.preventDefault(); // Prevent scrolling/selection while dragging
-        setDragPosition({
-          x: e.clientX - dragStartOffset.current.x,
-          y: e.clientY - dragStartOffset.current.y
-        });
-      }
+    // Define handlers to be attached to window
+    const handleMouseMove = (ev: MouseEvent) => {
+      ev.preventDefault();
+      setDragPosition({
+        x: ev.clientX - offsetX,
+        y: ev.clientY - offsetY
+      });
     };
 
-    const handleMouseUp = (e: MouseEvent) => {
-      if (dragPosition) {
-        // End drag
-        setDragPosition(null);
-        
-        // Trigger scan action
-        // IMPORTANT: This is a 'mouseup' event which IS a valid user gesture,
-        // satisfying getDisplayMedia requirements even if it was a drag operation.
-        handleStartScreenScan();
-      }
-    };
-
-    if (dragPosition) {
-      window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('mouseup', handleMouseUp);
-    }
-    
-    return () => {
+    const handleMouseUp = (ev: MouseEvent) => {
+      // IMPORTANT: Clean up listeners immediately
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
+      
+      setDragPosition(null);
+      
+      // Trigger scan action directly from the mouseup event
+      // This ensures 'getDisplayMedia' sees this as a valid user gesture
+      handleStartScreenScan();
     };
-  }, [dragPosition, handleStartScreenScan]);
+
+    // Attach listeners synchronously
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-primary/20">
@@ -245,12 +231,15 @@ function App() {
                   
                   {/* Placeholder that keeps layout stable when dragging */}
                   <div className="relative w-40 h-40">
-                    {/* This button handles MouseDown to start the visual drag. 
-                        It hides itself (via opacity) when dragging starts. */}
+                    {/* Main Interactive Button */}
                     <CameraButton 
                       onMouseDown={handleMouseDown}
-                      // Keyboard support fallback
-                      onClick={handleStartScreenScan}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          handleStartScreenScan();
+                        }
+                      }}
                       isDragging={false}
                       className={`${dragPosition ? 'opacity-0' : 'opacity-100'}`}
                     />
