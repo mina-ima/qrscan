@@ -1,3 +1,4 @@
+
 import React, { useCallback, useEffect, useState } from 'react';
 
 interface DropZoneProps {
@@ -128,12 +129,13 @@ export const DropZone: React.FC<DropZoneProps> = ({ onFileSelected, isProcessing
         <div className="w-full bg-slate-50/80 rounded-xl p-4 border border-slate-100 text-left pointer-events-auto">
           <div className="flex items-center gap-2 mb-3 text-slate-600">
              <svg className="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-             <span className="text-xs font-bold uppercase tracking-wider">部分スクショの撮り方</span>
+             <span className="text-xs font-bold uppercase tracking-wider">スクリーンショットの撮り方</span>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+            {/* Windows */}
             <div className="flex flex-col gap-1">
-              <span className="text-[10px] text-slate-400 font-medium">WINDOWS</span>
+              <span className="text-[10px] text-slate-400 font-medium">WINDOWS (部分)</span>
               <div className="flex items-center gap-1 text-sm text-slate-700 font-bold">
                 <kbd className="bg-white border-b-2 border-slate-200 px-1.5 rounded min-w-[2rem] text-center">Win</kbd>
                 <span className="text-slate-300">+</span>
@@ -143,16 +145,35 @@ export const DropZone: React.FC<DropZoneProps> = ({ onFileSelected, isProcessing
               </div>
             </div>
             
+            {/* Mac */}
             <div className="flex flex-col gap-1">
-              <span className="text-[10px] text-slate-400 font-medium">MAC</span>
+              <span className="text-[10px] text-slate-400 font-medium">MAC (部分)</span>
               <div className="flex items-center gap-1 text-sm text-slate-700 font-bold">
                 <kbd className="bg-white border-b-2 border-slate-200 px-1.5 rounded min-w-[2rem] text-center">Cmd</kbd>
-                <span className="text-slate-300">+</span>
-                <kbd className="bg-white border-b-2 border-slate-200 px-1.5 rounded min-w-[2rem] text-center">Ctrl</kbd>
                 <span className="text-slate-300">+</span>
                 <kbd className="bg-white border-b-2 border-slate-200 px-1.5 rounded min-w-[2rem] text-center">Shift</kbd>
                 <span className="text-slate-300">+</span>
                 <kbd className="bg-white border-b-2 border-slate-200 px-1.5 rounded min-w-[1.5rem] text-center">4</kbd>
+              </div>
+            </div>
+
+            {/* Android */}
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] text-slate-400 font-medium">ANDROID</span>
+              <div className="flex items-center gap-1 text-sm text-slate-700 font-bold">
+                <kbd className="bg-white border-b-2 border-slate-200 px-1.5 rounded min-w-[2.5rem] text-center text-xs">電源</kbd>
+                <span className="text-slate-300">+</span>
+                <kbd className="bg-white border-b-2 border-slate-200 px-1.5 rounded min-w-[2.5rem] text-center text-xs">音量小</kbd>
+              </div>
+            </div>
+
+            {/* iPhone */}
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] text-slate-400 font-medium">IPHONE</span>
+              <div className="flex items-center gap-1 text-sm text-slate-700 font-bold">
+                <kbd className="bg-white border-b-2 border-slate-200 px-1.5 rounded min-w-[2.5rem] text-center text-xs">サイド</kbd>
+                <span className="text-slate-300">+</span>
+                <kbd className="bg-white border-b-2 border-slate-200 px-1.5 rounded min-w-[2.5rem] text-center text-xs">音量大</kbd>
               </div>
             </div>
           </div>

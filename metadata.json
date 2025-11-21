@@ -1,5 +1,5 @@
 {
   "name": "ScreenQR リーダー",
-  "description": "カメラアイコンをQRコードの場所にドラッグ＆リリースして、画面を瞬時に読み取ります。",
+  "description": "スクリーンショットや画像からQRコードを瞬時に読み取ります。AIによるコンテンツ分析機能付き。",
   "requestFramePermissions": []
 }
