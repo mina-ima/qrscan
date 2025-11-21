@@ -1,10 +1,45 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { DropZone } from './components/DropZone';
 import { ResultCard } from './components/ResultCard';
 import { ScreenScanner } from './components/ScreenScanner';
 import { readQRFromImage } from './utils/qrUtils';
 import { analyzeQRContent } from './services/geminiService';
 import { AnalysisResult } from './types';
+
+// Reusable Camera Button Component
+const CameraButton: React.FC<{
+  isDragging?: boolean;
+  onMouseDown?: (e: React.MouseEvent) => void;
+  onClick?: () => void;
+  style?: React.CSSProperties;
+  className?: string;
+}> = ({ isDragging, onMouseDown, onClick, style, className = "" }) => (
+  <div 
+    style={style}
+    className={`
+      relative w-40 h-40 bg-gradient-to-br from-slate-800 to-slate-900 
+      rounded-[2.5rem] shadow-2xl flex flex-col items-center justify-center 
+      border-4 border-slate-700 transition-transform duration-100 z-10 select-none
+      ${isDragging ? 'scale-95 rotate-3 shadow-inner cursor-grabbing' : 'hover:scale-105 hover:-translate-y-2 hover:shadow-blue-500/30 hover:border-slate-600 cursor-grab'}
+      ${className}
+    `}
+    onMouseDown={onMouseDown}
+    onClick={onClick}
+    role="button"
+    tabIndex={0}
+    title="ドラッグしてQRコードの上で離す、またはクリックして開始"
+  >
+     {/* Lens reflection effect */}
+     <div className="absolute top-0 right-0 w-full h-full rounded-[2.5rem] bg-gradient-to-tr from-transparent via-white/5 to-white/20 pointer-events-none"></div>
+     
+     <svg className={`w-20 h-20 text-primary-300 transition-colors duration-300 ${isDragging ? 'text-primary-400' : 'group-hover:text-primary-200'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+     </svg>
+     
+     <div className="mt-2 text-xs font-bold text-slate-400 uppercase tracking-widest group-hover:text-slate-300 pointer-events-none">Screen Lens</div>
+  </div>
+);
 
 function App() {
   const [qrData, setQrData] = useState<string | null>(null);
@@ -13,19 +48,62 @@ function App() {
   const [isScreenScanning, setIsScreenScanning] = useState(false);
   const [activeStream, setActiveStream] = useState<MediaStream | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isDraggingCamera, setIsDraggingCamera] = useState(false);
 
-  const processQRData = (data: string) => {
+  // Custom Drag State (replaces HTML5 DnD to fix user gesture issues)
+  const [dragPosition, setDragPosition] = useState<{x: number, y: number} | null>(null);
+  const dragStartOffset = useRef({ x: 0, y: 0 });
+
+  const handleStopScreenScan = useCallback(() => {
+    if (activeStream) {
+      activeStream.getTracks().forEach(track => track.stop());
+      setActiveStream(null);
+    }
+    setIsScreenScanning(false);
+  }, [activeStream]);
+
+  const processQRData = useCallback((data: string) => {
     setQrData(data);
     setIsProcessing(false);
-    handleStopScreenScan(); // Close scanner and stop stream
+    handleStopScreenScan();
     setError(null);
 
-    // Start analysis
     analyzeQRContent(data)
       .then(result => setAnalysis(result))
       .catch(err => console.error(err));
-  };
+  }, [handleStopScreenScan]);
+
+  const handleStartScreenScan = useCallback(async () => {
+    setError(null);
+
+    // Check if API is supported
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+      setError("このブラウザは画面共有をサポートしていないか、セキュアなコンテキスト(HTTPS)で実行されていません。");
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: false
+      });
+      
+      setActiveStream(stream);
+      setIsScreenScanning(true);
+    } catch (err: any) {
+      if (err.name === 'NotAllowedError') {
+        console.log("Screen scan cancelled by user.");
+        return;
+      }
+      
+      console.error("Error starting screen capture:", err);
+
+      if (err.message && (err.message.includes('user gesture') || err.name === 'InvalidStateError')) {
+        setError("ブラウザのセキュリティ制限により起動できませんでした。アイコンを「クリック」して再試行してください。");
+      } else {
+        setError("画面キャプチャを開始できませんでした。権限を確認するか、別のブラウザをお試しください。");
+      }
+    }
+  }, []);
 
   const handleFileSelected = async (file: File) => {
     setIsProcessing(true);
@@ -55,68 +133,60 @@ function App() {
     setIsProcessing(false);
   };
 
-  const handleStartScreenScan = async () => {
-    setError(null);
+  // --- Custom Mouse Drag Logic ---
+  const handleMouseDown = (e: React.MouseEvent) => {
+    // Only handle left click
+    if (e.button !== 0) return;
+    
+    const rect = e.currentTarget.getBoundingClientRect();
+    dragStartOffset.current = {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    };
+    
+    setDragPosition({
+      x: rect.left,
+      y: rect.top
+    });
+    
+    // We do NOT call preventDefault() here to allow focus events, 
+    // but we might need it if text selection is annoying.
+    // For now, CSS user-select-none handles text selection.
+  };
 
-    // Check if API is supported
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
-      setError("このブラウザは画面共有をサポートしていないか、セキュアなコンテキスト(HTTPS)で実行されていません。");
-      return;
-    }
-
-    try {
-      // Use basic constraints for maximum compatibility
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: true,
-        audio: false
-      });
-      
-      setActiveStream(stream);
-      setIsScreenScanning(true);
-    } catch (err: any) {
-      // Handle user cancellation specifically (don't log as error)
-      if (err.name === 'NotAllowedError') {
-        console.log("Screen scan cancelled by user.");
-        return;
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (dragPosition) {
+        e.preventDefault(); // Prevent scrolling/selection while dragging
+        setDragPosition({
+          x: e.clientX - dragStartOffset.current.x,
+          y: e.clientY - dragStartOffset.current.y
+        });
       }
-      
-      console.error("Error starting screen capture:", err);
-      setError("画面キャプチャを開始できませんでした。権限を確認するか、別のブラウザをお試しください。");
+    };
+
+    const handleMouseUp = (e: MouseEvent) => {
+      if (dragPosition) {
+        // End drag
+        setDragPosition(null);
+        
+        // Trigger scan action
+        // IMPORTANT: This is a 'mouseup' event which IS a valid user gesture,
+        // satisfying getDisplayMedia requirements even if it was a drag operation.
+        handleStartScreenScan();
+      }
+    };
+
+    if (dragPosition) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
     }
-  };
-
-  const handleStopScreenScan = () => {
-    if (activeStream) {
-      activeStream.getTracks().forEach(track => track.stop());
-      setActiveStream(null);
-    }
-    setIsScreenScanning(false);
-  };
-
-  // Drag and Drop handlers for the Camera Icon
-  const handleCameraDragStart = (e: React.DragEvent) => {
-    e.dataTransfer.setData('text/plain', 'camera-trigger');
-    e.dataTransfer.effectAllowed = 'move';
-    setIsDraggingCamera(true);
-  };
-
-  const handleCameraDragEnd = () => {
-    setIsDraggingCamera(false);
-  };
-
-  const handleCameraDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-  };
-
-  const handleCameraDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    const data = e.dataTransfer.getData('text/plain');
-    if (data === 'camera-trigger') {
-      handleStartScreenScan();
-    }
-    setIsDraggingCamera(false);
-  };
+    
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [dragPosition, handleStartScreenScan]);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-primary/20">
@@ -155,10 +225,11 @@ function App() {
         
         <div className="mb-10 text-center max-w-2xl mx-auto">
           <h2 className="text-3xl font-bold text-slate-900 mb-4">
-            QRコード・インスタントデコーダー
+            画面上のQRコードをスキャン
           </h2>
           <p className="text-slate-600 text-lg">
-            カメラアイコンをドロップして画面をスキャンするか、<br/>画像をアップロードして読み取ります。
+            ブラウザ内外を問わず、画面上のあらゆるQRコードを読み取ります。<br/>
+            カメラアイコンを<span className="font-bold text-primary">QRコードの上までドラッグして離す</span>だけです。
           </p>
         </div>
 
@@ -166,74 +237,52 @@ function App() {
           {!qrData ? (
             <div className="space-y-10 animate-fade-in">
               
-              {/* D&D Scan Trigger Area */}
-              <div className="grid md:grid-cols-2 gap-8 items-stretch min-h-[320px]">
-                
-                {/* Left: Draggable Camera Source */}
-                <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-8 flex flex-col items-center justify-center relative overflow-hidden">
-                  <div className="absolute inset-0 bg-slate-50/50 pattern-dots opacity-20"></div>
+              {/* Draggable Camera Trigger */}
+              <div className="flex flex-col items-center justify-center py-8">
+                <div className="relative group">
+                  {/* Ripple effect (only visible when stationary) */}
+                  <div className={`absolute inset-0 bg-blue-100 rounded-full blur-xl transition-opacity duration-500 ${dragPosition ? 'opacity-0' : 'opacity-0 group-hover:opacity-30'}`}></div>
                   
-                  <h3 className="text-lg font-bold text-slate-700 mb-6 relative z-10">1. カメラを持つ</h3>
-                  
-                  {/* Draggable Icon */}
-                  <div 
-                    draggable={!isScreenScanning}
-                    onDragStart={handleCameraDragStart}
-                    onDragEnd={handleCameraDragEnd}
-                    className={`
-                      cursor-grab active:cursor-grabbing z-20 transition-all duration-300
-                      ${isDraggingCamera ? 'opacity-50 scale-95' : 'hover:scale-105'}
-                    `}
-                  >
-                    <div className="w-32 h-32 bg-gradient-to-br from-slate-800 to-slate-900 rounded-[2rem] shadow-2xl flex items-center justify-center border-4 border-slate-700 relative group">
-                       {/* Lens reflection effect */}
-                       <div className="absolute top-0 right-0 w-full h-full rounded-[2rem] bg-gradient-to-tr from-transparent via-white/5 to-white/20 pointer-events-none"></div>
-                       
-                       <svg className="w-16 h-16 text-primary-300 group-hover:text-primary-200 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                       </svg>
-                       
-                       {/* Drag Hint */}
-                       <div className="absolute -bottom-10 text-slate-400 text-sm font-medium animate-bounce">
-                         私をドラッグして！
-                       </div>
-                    </div>
+                  {/* Placeholder that keeps layout stable when dragging */}
+                  <div className="relative w-40 h-40">
+                    {/* This button handles MouseDown to start the visual drag. 
+                        It hides itself (via opacity) when dragging starts. */}
+                    <CameraButton 
+                      onMouseDown={handleMouseDown}
+                      // Keyboard support fallback
+                      onClick={handleStartScreenScan}
+                      isDragging={false}
+                      className={`${dragPosition ? 'opacity-0' : 'opacity-100'}`}
+                    />
                   </div>
-                </div>
 
-                {/* Right: Drop Target */}
-                <div 
-                  onDragOver={handleCameraDragOver}
-                  onDrop={handleCameraDrop}
-                  className={`
-                    rounded-3xl border-4 border-dashed flex flex-col items-center justify-center p-8 transition-all duration-300 relative
-                    ${isDraggingCamera 
-                      ? 'border-primary bg-blue-50/50 scale-[1.02] shadow-xl ring-4 ring-primary/10' 
-                      : 'border-slate-200 bg-slate-50/50'
-                    }
-                  `}
-                >
-                   <div className={`
-                     w-24 h-24 rounded-full flex items-center justify-center mb-4 transition-all duration-500
-                     ${isDraggingCamera ? 'bg-white text-primary scale-110 shadow-lg' : 'bg-slate-200 text-slate-400'}
-                   `}>
-                     <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                     </svg>
-                   </div>
-                   <h3 className={`text-lg font-bold mb-2 transition-colors ${isDraggingCamera ? 'text-primary' : 'text-slate-400'}`}>
-                     2. ここにドロップ
-                   </h3>
-                   <p className="text-slate-500 text-sm text-center max-w-xs">
-                     ここにカメラを離すと画面共有が始まります。<br/>
-                     <span className="font-bold text-primary">「画面全体」</span>を選べば、ブラウザ外のアプリもスキャン可能です。
-                   </p>
+                  {/* Instruction Label */}
+                  <div className={`
+                    absolute -bottom-16 left-1/2 transform -translate-x-1/2 w-64 text-center
+                    transition-all duration-300 pointer-events-none
+                    ${dragPosition ? 'opacity-0 translate-y-4' : 'opacity-100 translate-y-0'}
+                  `}>
+                    <span className="inline-block px-4 py-2 bg-slate-800 text-white text-sm font-medium rounded-full shadow-lg">
+                      ドラッグしてQRの上で離す
+                    </span>
+                    <p className="mt-2 text-xs text-slate-400">
+                      (またはクリックして開始)
+                    </p>
+                  </div>
                 </div>
               </div>
 
-              <div className="flex items-center justify-center gap-4 max-w-2xl mx-auto w-full">
+              {/* The Floating Drag Element (Rendered outside normal flow when dragging) */}
+              {dragPosition && (
+                <div 
+                   className="fixed z-50 pointer-events-none"
+                   style={{ left: dragPosition.x, top: dragPosition.y }}
+                >
+                   <CameraButton isDragging={true} />
+                </div>
+              )}
+
+              <div className="flex items-center justify-center gap-4 max-w-2xl mx-auto w-full pt-4">
                  <div className="h-px bg-slate-200 flex-1"></div>
                  <span className="text-slate-400 text-sm font-medium uppercase">または 画像ファイル</span>
                  <div className="h-px bg-slate-200 flex-1"></div>
@@ -251,7 +300,7 @@ function App() {
               )}
 
               {error && (
-                <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg animate-shake">
+                <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg animate-shake max-w-2xl mx-auto">
                   <div className="flex items-center">
                     <div className="flex-shrink-0">
                       <svg className="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">
@@ -271,22 +320,22 @@ function App() {
                   <div className="w-10 h-10 rounded-lg bg-blue-50 text-primary flex items-center justify-center mb-3">
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
                   </div>
-                  <h3 className="font-semibold text-slate-900 mb-1">D&D スキャン</h3>
-                  <p className="text-sm text-slate-500">カメラアイコンをドラッグしてスキャンを開始。直感的な操作でQRコードを狙い撃ち。</p>
+                  <h3 className="font-semibold text-slate-900 mb-1">ドラッグ＆リリース</h3>
+                  <p className="text-sm text-slate-500">カメラアイコンを読み取りたい場所に持っていき、マウスを離すだけでスキャン開始。</p>
                 </div>
                 <div className="p-4 rounded-xl bg-white border border-slate-100 shadow-sm">
                   <div className="w-10 h-10 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center mb-3">
                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
                   </div>
                   <h3 className="font-semibold text-slate-900 mb-1">安全性チェック</h3>
-                  <p className="text-sm text-slate-500">クリックする前に、Gemini AIがリンクの潜在的なセキュリティリスクを分析します。</p>
+                  <p className="text-sm text-slate-500">アクセスする前に、Gemini AIがリンクの潜在的なセキュリティリスクを分析します。</p>
                 </div>
                 <div className="p-4 rounded-xl bg-white border border-slate-100 shadow-sm">
                   <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center mb-3">
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                   </div>
-                  <h3 className="font-semibold text-slate-900 mb-1">高速処理</h3>
-                  <p className="text-sm text-slate-500">ブラウザ内でローカルに処理されるため、高速でプライバシーも安心です。</p>
+                  <h3 className="font-semibold text-slate-900 mb-1">画面全体対応</h3>
+                  <p className="text-sm text-slate-500">ブラウザの中だけでなく、PDF資料やデスクトップ上のアプリもスキャン可能です。</p>
                 </div>
               </div>
             </div>
