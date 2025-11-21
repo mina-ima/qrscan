@@ -1,13 +1,17 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { AnalysisResult } from "../types";
 
-const apiKey = process.env.API_KEY;
-const ai = new GoogleGenAI({ apiKey: apiKey });
+// Safely access process.env to prevent "process is not defined" errors in browser environments
+const apiKey = (typeof process !== 'undefined' && process.env) ? process.env.API_KEY : undefined;
+
+// Initialize with the key if present, otherwise use an empty string to prevent constructor error.
+// The actual check for a valid key happens inside analyzeQRContent.
+const ai = new GoogleGenAI({ apiKey: apiKey || '' });
 
 export const analyzeQRContent = async (content: string): Promise<AnalysisResult> => {
   if (!apiKey) {
     return {
-      summary: "APIキーが見つかりません。コンテンツを分析できません。",
+      summary: "APIキーが設定されていません。Vercelの設定で環境変数 (API_KEY) が正しく追加されているか確認してください。",
       safety: 'unknown',
       category: 'other'
     };
@@ -45,7 +49,7 @@ export const analyzeQRContent = async (content: string): Promise<AnalysisResult>
   } catch (error) {
     console.error("Gemini analysis failed:", error);
     return {
-      summary: "AI分析は現在利用できません。",
+      summary: "AI分析は現在利用できません。しばらく待ってから再試行してください。",
       safety: 'unknown',
       category: 'other'
     };
