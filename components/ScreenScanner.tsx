@@ -85,9 +85,10 @@ export const ScreenScanner: React.FC<ScreenScannerProps> = ({ stream, onScan, on
 
        <div className="text-center mb-6 max-w-2xl">
           <h2 className="text-white text-2xl font-bold mb-2">画面スキャナー起動中</h2>
-          <p className="text-slate-300 text-lg">
-            1. QRコードが表示されている画面またはウィンドウを選択してください。<br/>
-            2. 以下のプレビューにQRコードがはっきりと映っていることを確認してください。
+          <p className="text-slate-300 text-lg leading-relaxed">
+            ブラウザのポップアップで、QRコードが表示されている<br/>
+            <span className="font-bold text-white">「画面全体」</span>または<span className="font-bold text-white">「ウィンドウ」</span>を選択して共有してください。<br/>
+            <span className="text-sm text-slate-400">※ ブラウザ外（PDFや他のアプリ）のQRコードも読み取れます。</span>
           </p>
        </div>
 

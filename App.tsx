@@ -13,6 +13,7 @@ function App() {
   const [isScreenScanning, setIsScreenScanning] = useState(false);
   const [activeStream, setActiveStream] = useState<MediaStream | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isDraggingCamera, setIsDraggingCamera] = useState(false);
 
   const processQRData = (data: string) => {
     setQrData(data);
@@ -56,24 +57,31 @@ function App() {
 
   const handleStartScreenScan = async () => {
     setError(null);
+
+    // Check if API is supported
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+      setError("このブラウザは画面共有をサポートしていないか、セキュアなコンテキスト(HTTPS)で実行されていません。");
+      return;
+    }
+
     try {
-      // Must be called directly from user gesture
+      // Use basic constraints for maximum compatibility
       const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { 
-          cursor: "always",
-          displaySurface: "monitor"
-        } as any,
+        video: true,
         audio: false
       });
       
       setActiveStream(stream);
       setIsScreenScanning(true);
     } catch (err: any) {
-      console.error("Error starting screen capture:", err);
-      if (err.name !== 'NotAllowedError') {
-        setError("画面キャプチャを開始できませんでした。ブラウザが画面共有をサポートしているか確認してください。");
+      // Handle user cancellation specifically (don't log as error)
+      if (err.name === 'NotAllowedError') {
+        console.log("Screen scan cancelled by user.");
+        return;
       }
-      // If NotAllowedError (user cancelled), we just don't start scanning
+      
+      console.error("Error starting screen capture:", err);
+      setError("画面キャプチャを開始できませんでした。権限を確認するか、別のブラウザをお試しください。");
     }
   };
 
@@ -83,6 +91,31 @@ function App() {
       setActiveStream(null);
     }
     setIsScreenScanning(false);
+  };
+
+  // Drag and Drop handlers for the Camera Icon
+  const handleCameraDragStart = (e: React.DragEvent) => {
+    e.dataTransfer.setData('text/plain', 'camera-trigger');
+    e.dataTransfer.effectAllowed = 'move';
+    setIsDraggingCamera(true);
+  };
+
+  const handleCameraDragEnd = () => {
+    setIsDraggingCamera(false);
+  };
+
+  const handleCameraDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleCameraDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const data = e.dataTransfer.getData('text/plain');
+    if (data === 'camera-trigger') {
+      handleStartScreenScan();
+    }
+    setIsDraggingCamera(false);
   };
 
   return (
@@ -125,45 +158,88 @@ function App() {
             QRコード・インスタントデコーダー
           </h2>
           <p className="text-slate-600 text-lg">
-            画面上のQRコードを直接スキャン、または画像をアップロードして読み取ります。<br/>
-            AIによる安全確認付き。
+            カメラアイコンをドロップして画面をスキャンするか、<br/>画像をアップロードして読み取ります。
           </p>
         </div>
 
         <div className="transition-all duration-500 ease-in-out transform">
           {!qrData ? (
-            <div className="space-y-8 animate-fade-in">
+            <div className="space-y-10 animate-fade-in">
               
-              {/* Primary Actions */}
-              <div className="flex flex-col gap-6">
-                {/* Screen Scan Button - Prominent */}
-                <div className="w-full max-w-2xl mx-auto">
-                   <button 
-                     onClick={handleStartScreenScan}
-                     className="w-full group relative overflow-hidden bg-slate-900 hover:bg-slate-800 text-white rounded-2xl p-6 shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:shadow-2xl text-left"
-                   >
-                     <div className="absolute inset-0 bg-gradient-to-r from-primary/20 to-accent/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                     <div className="relative flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                          <div className="p-3 bg-white/10 rounded-xl">
-                            <svg className="w-8 h-8 text-primary-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-                          </div>
-                          <div>
-                            <h3 className="text-xl font-bold text-white mb-1">画面をスキャン</h3>
-                            <p className="text-slate-300 text-sm">ウィンドウや画面エリアを選択して、QRコードを即座に検出します。</p>
-                          </div>
-                        </div>
-                        <svg className="w-6 h-6 text-slate-400 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-                     </div>
-                   </button>
+              {/* D&D Scan Trigger Area */}
+              <div className="grid md:grid-cols-2 gap-8 items-stretch min-h-[320px]">
+                
+                {/* Left: Draggable Camera Source */}
+                <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-8 flex flex-col items-center justify-center relative overflow-hidden">
+                  <div className="absolute inset-0 bg-slate-50/50 pattern-dots opacity-20"></div>
+                  
+                  <h3 className="text-lg font-bold text-slate-700 mb-6 relative z-10">1. カメラを持つ</h3>
+                  
+                  {/* Draggable Icon */}
+                  <div 
+                    draggable={!isScreenScanning}
+                    onDragStart={handleCameraDragStart}
+                    onDragEnd={handleCameraDragEnd}
+                    className={`
+                      cursor-grab active:cursor-grabbing z-20 transition-all duration-300
+                      ${isDraggingCamera ? 'opacity-50 scale-95' : 'hover:scale-105'}
+                    `}
+                  >
+                    <div className="w-32 h-32 bg-gradient-to-br from-slate-800 to-slate-900 rounded-[2rem] shadow-2xl flex items-center justify-center border-4 border-slate-700 relative group">
+                       {/* Lens reflection effect */}
+                       <div className="absolute top-0 right-0 w-full h-full rounded-[2rem] bg-gradient-to-tr from-transparent via-white/5 to-white/20 pointer-events-none"></div>
+                       
+                       <svg className="w-16 h-16 text-primary-300 group-hover:text-primary-200 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                       </svg>
+                       
+                       {/* Drag Hint */}
+                       <div className="absolute -bottom-10 text-slate-400 text-sm font-medium animate-bounce">
+                         私をドラッグして！
+                       </div>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="flex items-center justify-center gap-4 max-w-2xl mx-auto w-full">
-                   <div className="h-px bg-slate-200 flex-1"></div>
-                   <span className="text-slate-400 text-sm font-medium uppercase">または</span>
-                   <div className="h-px bg-slate-200 flex-1"></div>
+                {/* Right: Drop Target */}
+                <div 
+                  onDragOver={handleCameraDragOver}
+                  onDrop={handleCameraDrop}
+                  className={`
+                    rounded-3xl border-4 border-dashed flex flex-col items-center justify-center p-8 transition-all duration-300 relative
+                    ${isDraggingCamera 
+                      ? 'border-primary bg-blue-50/50 scale-[1.02] shadow-xl ring-4 ring-primary/10' 
+                      : 'border-slate-200 bg-slate-50/50'
+                    }
+                  `}
+                >
+                   <div className={`
+                     w-24 h-24 rounded-full flex items-center justify-center mb-4 transition-all duration-500
+                     ${isDraggingCamera ? 'bg-white text-primary scale-110 shadow-lg' : 'bg-slate-200 text-slate-400'}
+                   `}>
+                     <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                     </svg>
+                   </div>
+                   <h3 className={`text-lg font-bold mb-2 transition-colors ${isDraggingCamera ? 'text-primary' : 'text-slate-400'}`}>
+                     2. ここにドロップ
+                   </h3>
+                   <p className="text-slate-500 text-sm text-center max-w-xs">
+                     ここにカメラを離すと画面共有が始まります。<br/>
+                     <span className="font-bold text-primary">「画面全体」</span>を選べば、ブラウザ外のアプリもスキャン可能です。
+                   </p>
                 </div>
+              </div>
 
+              <div className="flex items-center justify-center gap-4 max-w-2xl mx-auto w-full">
+                 <div className="h-px bg-slate-200 flex-1"></div>
+                 <span className="text-slate-400 text-sm font-medium uppercase">または 画像ファイル</span>
+                 <div className="h-px bg-slate-200 flex-1"></div>
+              </div>
+
+              <div className="max-w-2xl mx-auto w-full">
                 <DropZone onFileSelected={handleFileSelected} isProcessing={isProcessing} />
               </div>
 
@@ -195,8 +271,8 @@ function App() {
                   <div className="w-10 h-10 rounded-lg bg-blue-50 text-primary flex items-center justify-center mb-3">
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
                   </div>
-                  <h3 className="font-semibold text-slate-900 mb-1">ライブ画面スキャン</h3>
-                  <p className="text-sm text-slate-500">任意のウィンドウや画面をストリーミングして、リアルタイムでQRコードを検出します。</p>
+                  <h3 className="font-semibold text-slate-900 mb-1">D&D スキャン</h3>
+                  <p className="text-sm text-slate-500">カメラアイコンをドラッグしてスキャンを開始。直感的な操作でQRコードを狙い撃ち。</p>
                 </div>
                 <div className="p-4 rounded-xl bg-white border border-slate-100 shadow-sm">
                   <div className="w-10 h-10 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center mb-3">
